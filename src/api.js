@@ -10,10 +10,54 @@ const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
 
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 
 // Get Blockchain Details of current node
 app.get('/blockchain', function (req, res) {
     res.send(bitcoin);
+});
+
+app.get('/consensus', function (req, res) {
+    const requests = [];
+    bitcoin.networkNodes.forEach(nodeUrl => {
+        const uri = nodeUrl + '/blockchain'
+        const requestOptions = {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        };
+        requests.push(fetch(uri, requestOptions).then(data => data.json()));
+    });
+
+    Promise.all(requests).then(blockchains => {
+        const currentChainLength = bitcoin.chain.length;
+        let maxChainLength = currentChainLength;
+        let longestChain = null;
+        let pendingTransactions = null;
+
+        blockchains.forEach(blockchain => {
+            if (blockchain.chain.length > maxChainLength) {
+                maxChainLength = blockchain.chain.length;
+                longestChain = blockchain.chain;
+                pendingTransactions = blockchain.pendingTransactions;
+            }
+        });
+
+        if (!longestChain ||
+            (longestChain && !bitcoin.isChainValid(longestChain))) {
+            res.json({
+                message: 'Current chain cannot be replaced!',
+                chain: bitcoin.chain
+            });
+        } else if (longestChain && bitcoin.isChainValid(longestChain)) {
+            bitcoin.chain = longestChain;
+            bitcoin.pendingTransactions = pendingTransactions;
+
+            res.json({
+                message: 'Chain is updated!',
+                chain: bitcoin.chain
+            });
+        }
+    });
 });
 
 app.post('/transaction', function (req, res) {

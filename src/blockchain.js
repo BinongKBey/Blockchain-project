@@ -60,12 +60,45 @@ class Blockchain {
         let nonce = 0;
         let hash = this.hashBlock(prevBlockHash, currentBlockData, nonce);
 
-        while (hash.substring(0, 3) !== '000') {
+        while (hash.substring(0, 2) !== '00') {
             nonce++;
             hash = this.hashBlock(prevBlockHash, currentBlockData, nonce);
         };
 
         return nonce;
+    }
+    isChainValid(blockchain) {
+        const genesisBlock = blockchain[0];
+        if ((genesisBlock.nonce !== 100) ||
+            (genesisBlock.hash !== 'Genesis block') ||
+            (genesisBlock.prevBlockHash !== '0') ||
+            (genesisBlock.transactions.length !== 0)) {
+            return false;
+        }
+
+        for (let i = 1; i < blockchain.length; i++) {
+            const currentBlock = blockchain[i];
+            const previousBlock = blockchain[i - 1];
+
+            const currentBlockData = {
+                transactions: currentBlock.transactions,
+                index: currentBlock.index
+            }
+            const blockHash = this.hashBlock(previousBlock.hash, currentBlockData, currentBlock.nonce);
+
+            if (blockHash.substring(0, 2) !== '00') {
+                return false;
+            }
+
+            console.log('previousHash: ', previousBlock.hash);
+            console.log('currentHash: ', currentBlock.hash);
+            console.log('---------------');
+            if (currentBlock.prevBlockHash !== previousBlock.hash) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
