@@ -268,6 +268,44 @@ app.post('/register-and-broadcast-node', function (req, res) {
         });
 })
 
+
+// Get Block By Hash
+app.get('/block/:hash', function (req, res) {
+    const hash = req.params.hash;
+    const block = bitcoin.findBlockByHash(hash);
+
+    res.json({
+        block: block
+    });
+});
+
+// Get transaction by id
+app.get('/transaction/:id', function (req, res) {
+    const id = req.params.id;
+    const transactionInfo = bitcoin.findTransactionById(id);
+
+    if (transactionInfo !== null) {
+        res.json({
+            transaction: transactionInfo.transaction,
+            block: transactionInfo.block
+        });
+    } else {
+        res.json({
+            transaction: null
+        });
+    }
+});
+
+// Get Data related to address/user
+app.get('/address/:address', function (req, res) {
+    const address = req.params.address;
+    const data = bitcoin.findTransactionsByAddress(address);
+
+    res.json({
+        data: data
+    });
+});
+
 // api.js
 const port = process.argv[2];
 app.listen(port, function () {

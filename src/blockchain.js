@@ -100,6 +100,58 @@ class Blockchain {
 
         return true;
     }
+    findBlockByHash(hash) {
+        let result = null;
+
+        this.chain.forEach(block => {
+            if (block.hash === hash) {
+                result = block;
+            }
+        });
+
+        return result;
+    }
+    findTransactionById(id) {
+        let result = null;
+
+        this.chain.forEach(block => {
+            block.transactions.forEach(transaction => {
+                if (transaction.id === id) {
+                    result = {
+                        transaction: transaction,
+                        block: block
+                    }
+                }
+            });
+        });
+
+        return result;
+    }
+    findTransactionsByAddress(address) {
+        let transactions = [];
+
+        this.chain.forEach(block => {
+            block.transactions.forEach(transaction => {
+                if (transaction.sender === address || transaction.recipient === address) {
+                    transactions.push(transaction);
+                }
+            });
+        });
+
+        let balance = 0;
+        transactions.forEach(transaction => {
+            if (transaction.sender === address) {
+                balance -= +transaction.amount;
+            } else if (transaction.recipient === address) {
+                balance += +transaction.amount;
+            }
+        });
+
+        return {
+            transactions: transactions,
+            balance: balance
+        }
+    }
 }
 
 module.exports = Blockchain
