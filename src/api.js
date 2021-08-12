@@ -3,12 +3,14 @@ const app = express();
 const { v4: uuid } = require('uuid');
 const nodeAddr = uuid();
 const fetch = require('node-fetch');
+const cors = require('cors');
 
 const Blockchain = require('../src/blockchain');
 const bitcoin = new Blockchain();
 
 const currNodeUrl = process.argv[3];
 
+app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -73,9 +75,11 @@ app.post('/transaction', function (req, res) {
 
 app.post('/transaction/broadcast', function (req, res) {
     const transaction = bitcoin.makeNewTransaction(
-        req.body.amount,
-        req.body.sender,
-        req.body.recipient
+        req.body.land,
+        req.body.issuer,
+        req.body.issuerAadhaarId,
+        req.body.recipient,
+        req.body.recipientAadhaarId,
     );
     bitcoin.addTransactionToPendingTransactions(transaction);
 
@@ -153,20 +157,6 @@ app.get('/mine', function (req, res) {
 
     Promise.all(requests)
         .then(data => {
-            // reward for mining
-            const uri = bitcoin.nodeUrl + '/transaction/broadcast'
-            const requestOptions = {
-                method: 'POST',
-                body: JSON.stringify({
-                    amount: 1,
-                    sender: '00000',
-                    recipient: nodeAddr
-                }),
-                headers: { 'Content-Type': 'application/json' },
-            }
-            return fetch(uri, requestOptions);
-        })
-        .then(data => {
             res.json(
                 {
                     message: 'Mining & broadcasting new Block successfully!',
@@ -225,10 +215,10 @@ app.post('/register-and-broadcast-node', function (req, res) {
     // if (bitcoin.networkNodes.indexOf(nodeUrl) == -1 && nodeUrl !== currNodeUrl) {
     //     bitcoin.networkNodes.push(nodeUrl);
     // }
-
+    let possible = false
     // My Edit
     if (bitcoin.networkNodes.indexOf(nodeUrl) == -1 && nodeUrl !== currNodeUrl) {
-        bitcoin.networkNodes.push(nodeUrl);
+        possible = true
     }
     else {
         res.json(
@@ -257,15 +247,19 @@ app.post('/register-and-broadcast-node', function (req, res) {
                 body: JSON.stringify({ networkNodes: [...bitcoin.networkNodes, bitcoin.nodeUrl] }),
                 headers: { 'Content-Type': 'application/json' },
             }
-
             return fetch(uri, bulkRegisterOptions);
         }).then(data => {
+            if (possible) {
+                bitcoin.networkNodes.push(nodeUrl);
+            }
             res.json(
                 {
                     message: 'A node registers with network successfully!'
                 }
             );
-        });
+        }).catch(err => {
+            res.json({ error: "Node not available" })
+        })
 })
 
 
@@ -296,10 +290,10 @@ app.get('/transaction/:id', function (req, res) {
     }
 });
 
-// Get Data related to address/user
-app.get('/address/:address', function (req, res) {
-    const address = req.params.address;
-    const data = bitcoin.findTransactionsByAddress(address);
+// Get Data related to user/aadhaarId
+app.get('/aadhaar/:aadhaar', function (req, res) {
+    const aadhaar = req.params.aadhaar;
+    const data = bitcoin.findTransactionsByAadhaar(aadhaar);
 
     res.json({
         data: data

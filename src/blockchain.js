@@ -38,11 +38,13 @@ class Blockchain {
     getLatestBlock() {
         return this.chain[this.chain.length - 1];
     }
-    makeNewTransaction(amount, sender, recipient) {
+    makeNewTransaction(land, issuer, issuerAadhaarId, recipient, recipientAadhaarId) {
         const transaction = {
-            amount: amount,
-            sender: sender,
+            land: land,
+            issuer: issuer,
+            issuerAadhaarId: issuerAadhaarId,
             recipient: recipient,
+            recipientAadhaarId: recipientAadhaarId,
             id: uuid().split('-').join('')
         }
         return transaction;
@@ -127,29 +129,19 @@ class Blockchain {
 
         return result;
     }
-    findTransactionsByAddress(address) {
+    findTransactionsByAadhaar(aadhaar) {
         let transactions = [];
 
         this.chain.forEach(block => {
             block.transactions.forEach(transaction => {
-                if (transaction.sender === address || transaction.recipient === address) {
+                if (transaction.issuerAadhaarId === aadhaar || transaction.recipientAadhaarId === aadhaar) {
                     transactions.push(transaction);
                 }
             });
         });
 
-        let balance = 0;
-        transactions.forEach(transaction => {
-            if (transaction.sender === address) {
-                balance -= +transaction.amount;
-            } else if (transaction.recipient === address) {
-                balance += +transaction.amount;
-            }
-        });
-
         return {
             transactions: transactions,
-            balance: balance
         }
     }
 }
