@@ -4,15 +4,51 @@ const { v4: uuid } = require('uuid');
 const nodeAddr = uuid();
 const fetch = require('node-fetch');
 const cors = require('cors');
-
+const multer = require('multer');
 const Blockchain = require('../src/blockchain');
-const bitcoin = new Blockchain();
+const path = require('path')
+var FormData = require('form-data');
+const fs = require('fs');
 
+const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
 
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+// app.use(express.static(path.js))
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, path.join(__dirname, '../database', 'files'))
+    },
+    filename: function (req, file, cb) {
+        let extArray = file.mimetype.split("/");
+        let extension = extArray[extArray.length - 1];
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix + '.' + extension)
+    }
+})
+
+const upload = multer({ storage: storage })
+
+const storage2 = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, path.join(__dirname, '../database', 'files'))
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.originalname)
+    }
+})
+
+const uploadBroadcast = multer({ storage: storage2 })
+
+app.post('/stats', upload.single('record'), function (req, res) {
+    // req.file is the name of your file in the form above, here 'uploaded_file'
+    // req.body will hold the text fields, if there were any 
+    // console.log(req.file, req.body)
+    res.send(req.file)
+});
 
 // Get Blockchain Details of current node
 app.get('/blockchain', function (req, res) {
@@ -62,8 +98,14 @@ app.get('/consensus', function (req, res) {
     });
 });
 
-app.post('/transaction', function (req, res) {
-    const transaction = req.body;
+// For other node's transactions
+app.post('/transaction', uploadBroadcast.single('record'), function (req, res) {
+    const transaction = {
+        name: req.body.name,
+        aadhaar: req.body.aadhaar,
+        institution: req.body.institution,
+        record: '/database/files/' + req.file.filename,
+    };
     const blockIndex = bitcoin.addTransactionToPendingTransactions(transaction);
 
     res.json(
@@ -72,16 +114,20 @@ app.post('/transaction', function (req, res) {
         }
     );
 });
-
-app.post('/transaction/broadcast', function (req, res) {
+// Main route for transactions
+app.post('/transaction/broadcast', upload.single('record'), function (req, res) {
     const transaction = bitcoin.makeNewTransaction(
-        req.body.land,
-        req.body.issuer,
-        req.body.issuerAadhaarId,
-        req.body.recipient,
-        req.body.recipientAadhaarId,
+        req.body.name,
+        req.body.aadhaar,
+        req.body.institution,
+        '/database/files/' + req.file.filename,
     );
     bitcoin.addTransactionToPendingTransactions(transaction);
+    const transactionForm = new FormData();
+    transactionForm.append('name', req.body.name);
+    transactionForm.append('aadhaar', req.body.aadhaar);
+    transactionForm.append('institution', req.body.institution);
+    transactionForm.append('record', fs.createReadStream(path.join(__dirname, '../database', 'files', req.file.filename)));
 
     const requests = [];
     bitcoin.networkNodes.forEach(networkNode => {
@@ -89,8 +135,8 @@ app.post('/transaction/broadcast', function (req, res) {
 
         const requestOptions = {
             method: 'POST',
-            body: JSON.stringify(transaction),
-            headers: { 'Content-Type': 'application/json' },
+            body: transactionForm,
+            // headers: { 'Content-Type': 'multipart/form-data' },
         }
         requests.push(fetch(uri, requestOptions));
     });
@@ -167,6 +213,7 @@ app.get('/mine', function (req, res) {
 });
 
 // Register a node (used in register and broadcast node)
+
 app.post('/register-node', function (req, res) {
     const nodeUrl = req.body.nodeUrl;
 

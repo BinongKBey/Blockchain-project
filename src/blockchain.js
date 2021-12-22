@@ -4,6 +4,19 @@ const { v4: uuid } = require("uuid");
 const fs = require("fs");
 const path = require("path");
 const e = require("express");
+var configDir = './database/config';
+var chainsDir = './database/chains';
+
+class Transaction {
+  constructor(name, aadhaar, institution, record, id) {
+    this.name = name;
+    this.aadhaar = aadhaar;
+    this.institution = institution;
+    this.record = record;
+    this.id = id;
+  }
+};
+
 class Block {
   constructor(index, timestamp, nonce, prevBlockHash, hash, transactions) {
     this.index = index;
@@ -21,12 +34,17 @@ class Blockchain {
     this.pendingTransactions = [];
     this.nodeUrl = nodeUrl;
     this.networkNodes = [];
-    this.creatNewBlock(100, "0", "Genesis block");
+    if (this.chain.length == 0) {
+      this.creatNewBlock(100, "0", "Genesis block");
+    }
   }
 
   initChainFile() {
-    const configExists = fs.existsSync(`../database/config/config.json`);
+    const configExists = fs.existsSync(path.join(__dirname, "../database/config", `config.json`));
     if (!configExists) {
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
       fs.writeFileSync(
         path.join(__dirname, "../database/config", `config.json`),
         JSON.stringify({})
@@ -47,10 +65,13 @@ class Blockchain {
       );
     }
 
-    const chainFileExists = fs.existsSync(`../database/chains/${this.chainFileName}.json`);
+    const chainFileExists = fs.existsSync(path.join(__dirname, "../database/chains", `${this.chainFileName}.json`));
     if (!chainFileExists) {
       //   const createStream = fs.createWriteStream(`../database/chains/${this.chainFileName}.json`);
       //   createStream.end();
+      if (!fs.existsSync(chainsDir)) {
+        fs.mkdirSync(chainsDir, { recursive: true });
+      }
       fs.writeFileSync(
         path.join(__dirname, "../database/chains", `${this.chainFileName}.json`),
         JSON.stringify([])
@@ -64,7 +85,6 @@ class Blockchain {
     this.chain = JSON.parse(
       fs.readFileSync(path.join(__dirname, "../database/chains", `${this.chainFileName}.json`))
     );
-
     return this.chain;
   }
 
@@ -96,15 +116,10 @@ class Blockchain {
     const chain = this.syncChainState();
     return chain[chain.length - 1];
   }
-  makeNewTransaction(land, issuer, issuerAadhaarId, recipient, recipientAadhaarId) {
-    const transaction = {
-      land: land,
-      issuer: issuer,
-      issuerAadhaarId: issuerAadhaarId,
-      recipient: recipient,
-      recipientAadhaarId: recipientAadhaarId,
-      id: uuid().split("-").join(""),
-    };
+  makeNewTransaction(name, aadhaar, institution, record) {
+    let id = uuid().split("-").join("")
+    // makeNewTransaction(land, issuer, issuerAadhaarId, recipient, recipientAadhaarId) {
+    const transaction = new Transaction(name, aadhaar, institution, record, id);
     return transaction;
   }
   addTransactionToPendingTransactions(transaction) {
