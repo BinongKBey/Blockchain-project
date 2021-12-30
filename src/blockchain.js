@@ -8,11 +8,12 @@ var configDir = './database/config';
 var chainsDir = './database/chains';
 
 class Transaction {
-  constructor(name, aadhaar, institution, record, id) {
+  constructor(name, aadhaar, institution, record, serverKeys, id) {
     this.name = name;
     this.aadhaar = aadhaar;
     this.institution = institution;
     this.record = record;
+    this.serverKeys = serverKeys
     this.id = id;
   }
 };
@@ -116,10 +117,10 @@ class Blockchain {
     const chain = this.syncChainState();
     return chain[chain.length - 1];
   }
-  makeNewTransaction(name, aadhaar, institution, record) {
+  makeNewTransaction(name, aadhaar, institution, record, serverKeys) {
     let id = uuid().split("-").join("")
     // makeNewTransaction(land, issuer, issuerAadhaarId, recipient, recipientAadhaarId) {
-    const transaction = new Transaction(name, aadhaar, institution, record, id);
+    const transaction = new Transaction(name, aadhaar, institution, record, serverKeys, id);
     return transaction;
   }
   addTransactionToPendingTransactions(transaction) {

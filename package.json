@@ -25,6 +25,8 @@
     "node-fetch": "^2.6.1",
     "nodemon": "^2.0.11",
     "sha256": "^0.2.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
     "uuid": "^8.3.2"
   }
 }

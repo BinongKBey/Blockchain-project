@@ -9,6 +9,9 @@ const Blockchain = require('../src/blockchain');
 const path = require('path')
 var FormData = require('form-data');
 const fs = require('fs');
+const nacl = require('tweetnacl');
+const { encryptText, decryptText } = require('./encrypt');
+nacl.util = require('tweetnacl-util');
 
 const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
@@ -16,7 +19,8 @@ const currNodeUrl = process.argv[3];
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-// app.use(express.static(path.js))
+
+
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -43,12 +47,12 @@ const storage2 = multer.diskStorage({
 
 const uploadBroadcast = multer({ storage: storage2 })
 
-app.post('/stats', upload.single('record'), function (req, res) {
-    // req.file is the name of your file in the form above, here 'uploaded_file'
-    // req.body will hold the text fields, if there were any 
-    // console.log(req.file, req.body)
-    res.send(req.file)
-});
+// app.post('/stats', upload.single('record'), function (req, res) {
+// req.file is the name of your file in the form above, here 'uploaded_file'
+// req.body will hold the text fields, if there were any 
+// console.log(req.file, req.body)
+//     res.send(req.file)
+// });
 
 // Get Blockchain Details of current node
 app.get('/blockchain', function (req, res) {
@@ -105,6 +109,7 @@ app.post('/transaction', uploadBroadcast.single('record'), function (req, res) {
         aadhaar: req.body.aadhaar,
         institution: req.body.institution,
         record: '/database/files/' + req.file.filename,
+        serverKeys: req.body.serverKeys
     };
     const blockIndex = bitcoin.addTransactionToPendingTransactions(transaction);
 
@@ -116,18 +121,28 @@ app.post('/transaction', uploadBroadcast.single('record'), function (req, res) {
 });
 // Main route for transactions
 app.post('/transaction/broadcast', upload.single('record'), function (req, res) {
+    const serverKeys = nacl.box.keyPair();
+    const userKeys = nacl.box.keyPair();
+    const one_time_code = nacl.randomBytes(24);
+
+    const encrypted_name = encryptText(serverKeys, userKeys, req.body.name, one_time_code)
+    const encrypted_aadhaar = encryptText(serverKeys, userKeys, req.body.aadhaar, one_time_code)
+    const encrypted_institution = encryptText(serverKeys, userKeys, req.body.institution, one_time_code)
+
     const transaction = bitcoin.makeNewTransaction(
-        req.body.name,
-        req.body.aadhaar,
-        req.body.institution,
+        encrypted_name,
+        encrypted_aadhaar,
+        encrypted_institution,
         '/database/files/' + req.file.filename,
+        JSON.stringify(serverKeys)
     );
     bitcoin.addTransactionToPendingTransactions(transaction);
     const transactionForm = new FormData();
-    transactionForm.append('name', req.body.name);
-    transactionForm.append('aadhaar', req.body.aadhaar);
-    transactionForm.append('institution', req.body.institution);
+    transactionForm.append('name', encrypted_name);
+    transactionForm.append('aadhaar', encrypted_aadhaar);
+    transactionForm.append('institution', encrypted_institution);
     transactionForm.append('record', fs.createReadStream(path.join(__dirname, '../database', 'files', req.file.filename)));
+    transactionForm.append('serverKeys', JSON.stringify(serverKeys));
 
     const requests = [];
     bitcoin.networkNodes.forEach(networkNode => {
@@ -145,7 +160,9 @@ app.post('/transaction/broadcast', upload.single('record'), function (req, res) 
         .then(data => {
             res.json(
                 {
-                    message: `Creating and broadcasting Transaction successfully!`
+                    message: `Creating and broadcasting Transaction successfully!\nPlease note down these details. They cannot be recovered if lost.`,
+                    transactionId: transaction.id,
+                    keys: userKeys
                 }
             );
         });
@@ -321,14 +338,23 @@ app.get('/block/:hash', function (req, res) {
 });
 
 // Get transaction by id
-app.get('/transaction/:id', function (req, res) {
+app.post('/transaction/:id', function (req, res) {
     const id = req.params.id;
+    const user = req.body;
     const transactionInfo = bitcoin.findTransactionById(id);
+    const server = transactionInfo.transaction.serverKeys;
 
+    const decryptedTransaction = {
+        name: decryptText(server, user, transactionInfo.transaction.name),
+        aadhaar: decryptText(server, user, transactionInfo.transaction.aadhaar),
+        institution: decryptText(server, user, transactionInfo.transaction.institution),
+        record: transactionInfo.transaction.record,
+        id: transactionInfo.transaction.id,
+    }
     if (transactionInfo !== null) {
         res.json({
-            transaction: transactionInfo.transaction,
-            block: transactionInfo.block
+            transaction: decryptedTransaction,
+            // block: transactionInfo.block
         });
     } else {
         res.json({
