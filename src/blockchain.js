@@ -41,35 +41,9 @@ class Blockchain {
   }
 
   initChainFile() {
-    const configExists = fs.existsSync(path.join(__dirname, "../database/config", `config.json`));
-    if (!configExists) {
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
-      }
-      fs.writeFileSync(
-        path.join(__dirname, "../database/config", `config.json`),
-        JSON.stringify({})
-      );
-    }
-
-    const config = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "../database/config", `config.json`))
-    );
-    if (config[nodeUrl]) {
-      this.chainFileName = config[nodeUrl];
-    } else {
-      this.chainFileName = uuid();
-      config[nodeUrl] = this.chainFileName;
-      fs.writeFileSync(
-        path.join(__dirname, "../database/config", `config.json`),
-        JSON.stringify(config)
-      );
-    }
-
+    this.chainFileName = "chainData"
     const chainFileExists = fs.existsSync(path.join(__dirname, "../database/chains", `${this.chainFileName}.json`));
     if (!chainFileExists) {
-      //   const createStream = fs.createWriteStream(`../database/chains/${this.chainFileName}.json`);
-      //   createStream.end();
       if (!fs.existsSync(chainsDir)) {
         fs.mkdirSync(chainsDir, { recursive: true });
       }
@@ -119,7 +93,6 @@ class Blockchain {
   }
   makeNewTransaction(name, aadhaar, institution, record, serverKeys) {
     let id = uuid().split("-").join("")
-    // makeNewTransaction(land, issuer, issuerAadhaarId, recipient, recipientAadhaarId) {
     const transaction = new Transaction(name, aadhaar, institution, record, serverKeys, id);
     return transaction;
   }

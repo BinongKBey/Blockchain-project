@@ -12,6 +12,7 @@ const fs = require('fs');
 const nacl = require('tweetnacl');
 const { encryptText, decryptText } = require('./encrypt');
 nacl.util = require('tweetnacl-util');
+const { unlink } = require('fs');
 
 const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
@@ -19,8 +20,6 @@ const currNodeUrl = process.argv[3];
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-
-
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -59,6 +58,11 @@ app.get('/blockchain', function (req, res) {
     res.send(bitcoin);
 });
 
+// app.post('/sendFile',uploadBroadcast.array('record'))
+// app.get('/editChain',function(req,res){
+//     e6c69f84-38d6-46b3-93c5-da311490ccda
+// })
+
 app.get('/consensus', function (req, res) {
     const requests = [];
     bitcoin.networkNodes.forEach(nodeUrl => {
@@ -92,8 +96,12 @@ app.get('/consensus', function (req, res) {
             });
         } else if (longestChain && bitcoin.isChainValid(longestChain)) {
             bitcoin.chain = longestChain;
+            const chainFileName = 'chainData';
             bitcoin.pendingTransactions = pendingTransactions;
-
+            fs.writeFileSync(
+                path.join(__dirname, "../database/chains", `${chainFileName}.json`),
+                JSON.stringify(bitcoin.chain)
+            );
             res.json({
                 message: 'Chain is updated!',
                 chain: bitcoin.chain
@@ -119,6 +127,7 @@ app.post('/transaction', uploadBroadcast.single('record'), function (req, res) {
         }
     );
 });
+
 // Main route for transactions
 app.post('/transaction/broadcast', upload.single('record'), function (req, res) {
     const serverKeys = nacl.box.keyPair();
@@ -372,6 +381,11 @@ app.get('/aadhaar/:aadhaar', function (req, res) {
         data: data
     });
 });
+
+// for download
+app.get('/database/files/:filename', function (req, res) {
+    res.download(path.join(__dirname, '..', 'database', 'files', req.params.filename))
+})
 
 // api.js
 const port = process.argv[2];
