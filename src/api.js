@@ -12,7 +12,7 @@ const fs = require('fs');
 const nacl = require('tweetnacl');
 const { encryptText, decryptText } = require('./encrypt');
 nacl.util = require('tweetnacl-util');
-const { unlink } = require('fs');
+const download = require('download');
 
 const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
@@ -59,9 +59,6 @@ app.get('/blockchain', function (req, res) {
 });
 
 // app.post('/sendFile',uploadBroadcast.array('record'))
-// app.get('/editChain',function(req,res){
-//     e6c69f84-38d6-46b3-93c5-da311490ccda
-// })
 
 app.get('/consensus', function (req, res) {
     const requests = [];
@@ -79,11 +76,13 @@ app.get('/consensus', function (req, res) {
         let maxChainLength = currentChainLength;
         let longestChain = null;
         let pendingTransactions = null;
+        let longChainUrl = nodeUrl
 
         blockchains.forEach(blockchain => {
             if (blockchain.chain.length > maxChainLength) {
                 maxChainLength = blockchain.chain.length;
                 longestChain = blockchain.chain;
+                longChainUrl = blockchain.nodeUrl
                 pendingTransactions = blockchain.pendingTransactions;
             }
         });
@@ -102,6 +101,23 @@ app.get('/consensus', function (req, res) {
                 path.join(__dirname, "../database/chains", `${chainFileName}.json`),
                 JSON.stringify(bitcoin.chain)
             );
+
+            console.log(longChainUrl)
+            if (bitcoin.chain.length > 1) {
+                bitcoin.chain.forEach((eachChain) => {
+                    if (eachChain.transactions.length > 0) {
+                        eachChain.transactions.forEach((eachTransaction) => {
+                            // Url
+                            const file = longChainUrl + eachTransaction.record
+                            const filePath = path.join(__dirname, "../database/files");
+                            download(file, filePath)
+                                .then(() => {
+                                    console.log('Download Completed');
+                                })
+                        })
+                    }
+                })
+            }
             res.json({
                 message: 'Chain is updated!',
                 chain: bitcoin.chain
