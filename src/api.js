@@ -13,6 +13,7 @@ const nacl = require('tweetnacl');
 const { encryptText, decryptText } = require('./encrypt');
 nacl.util = require('tweetnacl-util');
 const download = require('download');
+const HummusRecipe = require('hummus-recipe');
 
 const bitcoin = new Blockchain();
 const currNodeUrl = process.argv[3];
@@ -23,7 +24,7 @@ app.use(express.urlencoded({ extended: true }))
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, path.join(__dirname, '../database', 'files'))
+        cb(null, path.join(__dirname, '../database', 'temp'))
     },
     filename: function (req, file, cb) {
         let extArray = file.mimetype.split("/");
@@ -133,7 +134,8 @@ app.post('/transaction', uploadBroadcast.single('record'), function (req, res) {
         aadhaar: req.body.aadhaar,
         institution: req.body.institution,
         record: '/database/files/' + req.file.filename,
-        serverKeys: req.body.serverKeys
+        serverKeys: req.body.serverKeys,
+        id: req.body.transaction
     };
     const blockIndex = bitcoin.addTransactionToPendingTransactions(transaction);
 
@@ -154,6 +156,15 @@ app.post('/transaction/broadcast', upload.single('record'), function (req, res) 
     const encrypted_aadhaar = encryptText(serverKeys, userKeys, req.body.aadhaar, one_time_code)
     const encrypted_institution = encryptText(serverKeys, userKeys, req.body.institution, one_time_code)
 
+    const sourcepath = path.join(__dirname, '../database', 'temp', req.file.filename);
+    const destpath = path.join(__dirname, '../database', 'files', req.file.filename);
+    const pdfDoc = new HummusRecipe(sourcepath, destpath);
+    pdfDoc.encrypt({
+        userPassword: req.body.password,
+        ownerPassword: req.body.password,
+        userProtectionFlag: 4
+    }).endPDF()
+
     const transaction = bitcoin.makeNewTransaction(
         encrypted_name,
         encrypted_aadhaar,
@@ -168,6 +179,7 @@ app.post('/transaction/broadcast', upload.single('record'), function (req, res) 
     transactionForm.append('institution', encrypted_institution);
     transactionForm.append('record', fs.createReadStream(path.join(__dirname, '../database', 'files', req.file.filename)));
     transactionForm.append('serverKeys', JSON.stringify(serverKeys));
+    transactionForm.append('id', transaction.id);
 
     const requests = [];
     bitcoin.networkNodes.forEach(networkNode => {
@@ -187,7 +199,8 @@ app.post('/transaction/broadcast', upload.single('record'), function (req, res) 
                 {
                     message: `Creating and broadcasting Transaction successfully!\nPlease note down these details. They cannot be recovered if lost.`,
                     transactionId: transaction.id,
-                    keys: userKeys
+                    keys: userKeys,
+                    record: '/database/files/' + req.file.filename
                 }
             );
         });
@@ -196,10 +209,14 @@ app.post('/transaction/broadcast', upload.single('record'), function (req, res) 
 app.post('/add-block', function (req, res) {
     const block = req.body.newBlock;
     const latestBlock = bitcoin.getLatestBlock();
-
+    const chainFileName = "chainData"
     if ((latestBlock.hash === block.prevBlockHash)
         && (block.index === latestBlock.index + 1)) {
         bitcoin.chain.push(block);
+        fs.writeFileSync(
+            path.join(__dirname, "../database/chains", `${chainFileName}.json`),
+            JSON.stringify(bitcoin.chain)
+        );
         bitcoin.pendingTransactions = [];
 
         res.json(
@@ -306,7 +323,8 @@ app.post('/register-and-broadcast-node', function (req, res) {
     // }
     let possible = false
     // My Edit
-    if (bitcoin.networkNodes.indexOf(nodeUrl) == -1 && nodeUrl !== currNodeUrl) {
+    console.log(nodeUrl)
+    if (bitcoin.networkNodes.indexOf(nodeUrl) === -1 && nodeUrl !== currNodeUrl) {
         possible = true
     }
     else {
@@ -347,7 +365,7 @@ app.post('/register-and-broadcast-node', function (req, res) {
                 }
             );
         }).catch(err => {
-            res.json({ error: "Node not available" })
+            res.json({ message: "Node not available" })
         })
 })
 
@@ -401,6 +419,20 @@ app.get('/aadhaar/:aadhaar', function (req, res) {
 // for download
 app.get('/database/files/:filename', function (req, res) {
     res.download(path.join(__dirname, '..', 'database', 'files', req.params.filename))
+})
+
+app.delete('/database/files/:filename', async function (req, res) {
+    let deleted = false
+    await fs.unlink(path.join(__dirname, '../database', 'temp', req.params.filename), (err => {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            console.log("\nDeleted Temp File");
+            deleted = true
+        }
+    }))
+    res.json({ deleted: deleted })
 })
 
 // api.js
